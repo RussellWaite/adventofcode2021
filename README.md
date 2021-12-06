@@ -1,4 +1,4 @@
-# adventofcode2021
+# advent of code 2021
 
 Me learning (painfully) rust whilst doing Advent of Code
 
