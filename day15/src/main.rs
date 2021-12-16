@@ -75,7 +75,11 @@ fn bottom_left_up_pass(caves: &Vec<Vec<u8>>, optimus: &mut Vec<Vec<u64>>) -> (Ve
                 return;
             }
             let neighbours = surrounding_values(&optimus_clone, (r,c), (grid_x, grid_y));
-            let lowest_score_for_cell = neighbours.iter().map(|(_, value)|value).min().unwrap() + *cell as u64;
+            let lowest_score_for_cell = neighbours.iter()
+                .map(|(_, value)|value)
+                .min()
+                .unwrap() + *cell as u64;
+
             if optimus_clone[r][c] != lowest_score_for_cell {
                 work.push((r,c));
             }
@@ -104,7 +108,11 @@ fn process_change_requests(caves: &Vec<Vec<u8>>,
         if risk_matrix[jx][jy] != lowest_calculated_score {    
             risk_matrix[jx][jy] = lowest_calculated_score;
 
-            let mut potential_recalculations = neighbours.iter().filter(|(_, value)| value > lowest_neighbour).map(|(coords, _)| *coords).collect::<Vec<(usize, usize)>>();
+            let mut potential_recalculations = neighbours.iter()
+                .filter(|(_, value)| value > lowest_neighbour)
+                .map(|(coords, _)| *coords)
+                .collect::<Vec<(usize, usize)>>();
+
             work.append(&mut &mut potential_recalculations);
         }
     }
@@ -118,21 +126,98 @@ fn surrounding_values(grid: &Vec<Vec<u64>>, origin: (usize, usize), grid_size: (
 
     if x == 0 && y == 0 { return result; }
     
-    if x > 0        { result.push(((x-1, y), grid[x-1][y])); }
-    if y > 0        { result.push(((x, y-1), grid[x][y-1])); }
-    if x < gx - 1   { result.push(((x+1, y), grid[x+1][y])); }
-    if y < gy-1     { result.push(((x, y+1), grid[x][y+1])); }
+    if x > 0        { result.push(((x - 1, y), grid[x - 1][y])); }
+    if y > 0        { result.push(((x, y - 1), grid[x][y - 1])); }
+    if x < gx - 1   { result.push(((x + 1, y), grid[x + 1][y])); }
+    if y < gy - 1   { result.push(((x, y + 1), grid[x][y + 1])); }
 
     result
 }
 
 fn day15_2_result(path: &str) -> u64 {
-    let _caves = read_file(path);
-    0
+    let caves = read_file(path);
+   
+    let mut larger_caves = upscale_caves(&caves);
+    larger_caves[0][0] = 0;
+    let gx = larger_caves.len();
+    let gy = larger_caves[0].len();
+
+    let mut matrix = precalculate_matrix(&larger_caves);
+    let (matrix_revisted, mut blast_radius) = bottom_left_up_pass(&larger_caves, &mut matrix);
+    let yet_another_grid = process_change_requests(&larger_caves, matrix_revisted, (gx, gy), &mut blast_radius);
+
+    yet_another_grid[gx-1][gy-1]
 }
 
+fn upscale_caves(caves: &Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+    // need to 5 by 5 these
+    // looking at test data - the tile to the right is the same as the tile below, it's repeating
+    // but offset by one on each row... so, we could just do 8 calculations (4 for eactra tiles to
+    // right, then 4 more for number of rows since they are offset by one) then push values...
+    // [x][x+1][x+2][x+3[x+4]
+    // [x+1][x+2][x+3[x+4][x+5]
+    // [x+2][x+3[x+4][x+5][x+6]
+    // etc.
+    let mut tiles:Vec<Vec<Vec<u8>>> = vec![];
+    tiles.push(caves.to_vec());
+    let gx = caves.len();
+
+    for i in 1..=8 {
+        tiles.push(caves.iter()
+                   .enumerate()
+                   .map(|(x, column)| column.iter()
+                        .enumerate()
+                        .map(|(y, _)| increment_risk(tiles[i-1][x][y]))
+                        .collect())
+                   .collect());
+    }
+    
+    let mut big_map:Vec<Vec<u8>> = vec![];
+    
+    for r in 0..gx {
+        let mut big_column = vec![];
+        for t in 0..tiles.len() {
+            big_column.append(&mut tiles[t][r])
+        }
+        big_map.push(big_column);
+    }
+
+    // now JUST stagger them
+    let mut final_map: Vec<Vec<u8>> = vec![];
+    for i in 0..5 {
+        big_map.iter()
+            .for_each(|columns| {
+                let mut windowed_column = columns.iter()
+                    .enumerate()
+                    .filter(|(idx, _)| *idx >= (i*gx) as usize && *idx < ((i+5)*gx) as usize)
+                    .map(|(_, item)| *item).collect::<Vec<u8>>();
+            final_map.push(windowed_column);
+            });
+    }
+
+    final_map
+}
+
+fn increment_risk(risk: u8) -> u8 {
+    return  if risk == 9 { 1 } else { risk + 1 };
+}
+
+fn day15_2_result_test() {
+    assert_eq!(day15_2_result("test_input"), 315);
+}
+
+#[test]
+fn upscale_caves_test() {
+    let data = read_file("test_input");
+    let bigger_map = upscale_caves(&data);
+
+    assert_eq!(bigger_map.len() ,50);
+    assert_eq!(bigger_map[0][49], 6);
+    assert_eq!(bigger_map[49][49], 9);
+}
 
 #[test]
 fn day15_1_result_test() {
     assert_eq!(day15_1_result("test_input"), 40);
+    assert_eq!(day15_1_result("input"), 739); 
 }
