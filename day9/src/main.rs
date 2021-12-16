@@ -5,12 +5,12 @@ use std::usize;
 use std::borrow::Borrow;
 
 fn main() {
+    //let start = Instant::now();
+    //println!("The first answer is {}", day9_1_result("./input"));
+    //let duration = Instant::now() - start;
+    //println!("how quick, this quick: {} μs", duration.as_micros());
     let start = Instant::now();
-    println!("The first answer is {}", day9_1_result("./input"));
-    let duration = Instant::now() - start;
-    println!("how quick, this quick: {} μs", duration.as_micros());
-    let start = Instant::now();
-    println!("The second (PERF) answer is {}", day9_2_result("./input"));
+    println!("The second answer is {}", day9_2_result("./input"));
     let duration = Instant::now() - start;
     println!("how quick, this quick: {} μs", duration.as_micros());
 }
@@ -70,47 +70,56 @@ fn day9_2_result(path: &str) -> usize {
     let (columns, data) = read_file(path);
     
     let rows = data.len()/columns;
-    let mut results = vec![];
-
-    for cell in 0..data.len() {
-        if is_low_point(cell, &data, rows, columns) {
-            results.push(data[cell]);
-        }
-    }
 
     let mut taken: Vec<usize> = vec![];
     let mut basins: Vec<Vec<usize>> = vec![];
+
+    let mut visits = 0;
+    
+    let start = Instant::now();
+    
     // let "dirty mutations reaching out of functions thanks to closure binding"  commence
     data.iter().enumerate().filter(|(_, &x)| x != 9)
     .for_each(|(idx, _)| {
 
         let mut this_basin: Vec<usize> = vec![];
          
-        expand(idx, &data, rows, columns, &mut taken, &mut this_basin);
+        visits += expand(idx, &data, rows, columns, &mut taken, &mut this_basin);
+        
         if !this_basin.is_empty() {
             basins.push(this_basin);
         }
     });
+    
+    let duration = Instant::now() - start;
+    println!("Time in filtered data for_each is {} μs", duration.as_micros());
+
+    println!("there have been {} vists", visits);
 
     let mut basin_sizes :Vec<usize> = basins.iter().map(|x|  x.len()).collect();
     
     basin_sizes.sort_unstable();
-
     basin_sizes.reverse();
     basin_sizes[0..3].iter().product()
+    //(0..3).filter_map(|_| basin_sizes.pop()).product()
 }
 
-fn expand(idx: usize, area: &[u32], rows: usize, columns:usize, taken: &mut Vec<usize>, basin: &mut Vec<usize>) {
+fn expand(idx: usize, area: &[u32], rows: usize, columns:usize, taken: &mut Vec<usize>, basin: &mut Vec<usize>) -> u32 {
     if taken.contains(&idx) {
-        return;
+        return 0;
     }
     taken.push(idx);
     basin.push(idx);
+    let mut visited = 1;
+    let grid_x = idx % columns;
+    let grid_x = idx % columns;
 
-    if let Some(x) = move_right(idx, area, columns, taken) { expand(x, area, rows, columns, taken, basin) }
-    if let Some(x) = move_down(idx, area, rows, columns, taken) { expand(x, area, rows, columns, taken, basin) }
-    if let Some(x) = move_left(idx, area, columns, taken) { expand(x, area, rows, columns, taken, basin) }
-    if let Some(x) = move_up(idx, area, columns, taken) { expand(x, area, rows, columns, taken, basin) }
+    if let Some(x) = move_right(idx, area, columns, taken) { visited += expand(x, area, rows, columns, taken, basin) }
+    if let Some(x) = move_down(idx, area, rows, columns, taken) { visited += expand(x, area, rows, columns, taken, basin) }
+    if let Some(x) = move_left(idx, area, columns, taken) { visited += expand(x, area, rows, columns, taken, basin) }
+    if let Some(x) = move_up(idx, area, columns, taken) { visited += expand(x, area, rows, columns, taken, basin) }
+    
+    visited
 }
 
 fn move_left(idx: usize, area: &[u32], columns: usize, taken: &Vec<usize>) -> Option<usize> {
